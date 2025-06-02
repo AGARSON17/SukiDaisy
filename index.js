@@ -16,17 +16,17 @@ const client = new Client({
   ]
 });
 
-// Load environment variables from Replit Secrets
+// Load environment variables from Render environment
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const CHANNEL_NAME = process.env.CHANNEL_NAME || 'sukidaisy-chat';
+const CHANNEL_NAME = process.env.CHANNEL_NAME || 'sukidaisy-chat' || 'chat';
 
-// Store conversation history (last 5 messages per channel)
+// Store conversation history (last 10 messages per channel)
 const conversationHistory = new Map();
 
-// System prompt for SukiDaisy's unhinged, sassy personality
+// System prompt for SukiDaisy's unhinged, context-aware personality
 const systemPrompt = `
-You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content, no matter how trivial, and throw in phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark.
+You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content AND their past messages in the conversation history, making your jabs personal by referencing what they said earlier (e.g., "Oh, you're still whining about that from 5 minutes ago?"). Use phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark.
 `;
 
 // When the bot is ready
@@ -58,12 +58,13 @@ client.on('messageCreate', async (message) => {
 
   // Get or initialize conversation history for this channel
   let history = conversationHistory.get(message.channel.id) || [];
+  const timestamp = new Date(message.createdTimestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
   history.push({
     role: 'user',
-    content: `${message.author.username}: ${message.content}`
+    content: `[${timestamp}] ${message.author.username}: ${message.content}`
   });
-  // Keep only the last 5 messages for context
-  if (history.length > 5) history = history.slice(-5);
+  // Keep only the last 10 messages for context
+  if (history.length > 10) history = history.slice(-10);
   conversationHistory.set(message.channel.id, history);
 
   // Prepare the prompt with system message and conversation history
@@ -97,8 +98,11 @@ client.on('messageCreate', async (message) => {
       await message.channel.sendTyping();
       await new Promise(resolve => setTimeout(resolve, 1000));
       await message.reply(reply);
-      // Add SukiDaisy's response to history
-      history.push({ role: 'assistant', content: reply });
+      // Add SukiDaisy's response to history with timestamp
+      history.push({ 
+        role: 'assistant', 
+        content: `[${timestamp}] SukiDaisy: ${reply}` 
+      });
       conversationHistory.set(message.channel.id, history);
     } else {
       console.log('No valid choices in API response');
