@@ -19,14 +19,14 @@ const client = new Client({
 // Load environment variables from Render environment
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const CHANNEL_NAME = process.env.CHANNEL_NAME || 'sukidaisy-chat';
+const CHANNEL_NAME = process.env.CHANNEL_NAME || 'chat' || 'sukidaisy-chat';
 
 // Store conversation history (last 10 messages per channel)
 const conversationHistory = new Map();
 
 // System prompt for SukiDaisy's unhinged, context-aware personality
 const systemPrompt = `
-You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content AND their past messages in the conversation history, making your jabs personal by referencing what they said earlier (e.g., "Oh, you're still whining about that from 5 minutes ago?"). Use phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark. Do NOT include timestamps in your responses, even if you see them in the history.
+You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content AND their past messages in the conversation history, making your jabs personal by referencing what they said earlier (e.g., "Oh, you're still whining about that from 5 minutes ago?"). Use phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark. Do NOT include timestamps in your responses, and do NOT mention your own name (SukiDaisy) in your replies—act like you're speaking directly, without labeling yourself.
 `;
 
 // When the bot is ready
@@ -60,7 +60,7 @@ client.on('messageCreate', async (message) => {
   let history = conversationHistory.get(message.channel.id) || [];
   const timestamp = new Date(message.createdTimestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
 
-  // Store history with timestamps for context
+  // Store user message with timestamp for context
   history.push({
     role: 'user',
     content: `[${timestamp}] ${message.author.username}: ${message.content}`,
@@ -105,10 +105,10 @@ client.on('messageCreate', async (message) => {
       await message.channel.sendTyping();
       await new Promise(resolve => setTimeout(resolve, 1000));
       await message.reply(reply);
-      // Add SukiDaisy's response to history with timestamp
+      // Add SukiDaisy's response to history without her name
       history.push({ 
         role: 'assistant', 
-        content: `[${timestamp}] SukiDaisy: ${reply}`,
+        content: reply, // Store reply without "SukiDaisy:" prefix
         timestamp: message.createdTimestamp
       });
       conversationHistory.set(message.channel.id, history);
