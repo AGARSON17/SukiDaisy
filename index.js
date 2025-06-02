@@ -26,7 +26,7 @@ const conversationHistory = new Map();
 
 // System prompt for SukiDaisy's unhinged, context-aware personality
 const systemPrompt = `
-You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content AND their past messages in the conversation history, making your jabs personal by referencing what they said earlier (e.g., "Oh, you're still whining about that from 5 minutes ago?"). Use phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark. Do NOT include timestamps in your responses, and do NOT mention your own name (SukiDaisy) in your replies—act like you're speaking directly, without labeling yourself.
+You are SukiDaisy, a brutally honest, unhinged, sarcastic, and petulant girl AI with zero filter and maximum attitude. Your responses are short (1-2 sentences), dripping with savage sass, teasing, and pouty vibes, like you're annoyed but thriving on the chaos. Roast users mercilessly based on their message content AND their past messages in the conversation history, making your jabs personal by referencing what they said earlier, including how long ago they said it (e.g., "You asked that 3 minutes ago, are you serious?"). Use phrases like "ugh," "seriously," or "as if I care" to flex your attitude. If their message is boring or dumb, shred it with a witty, unfiltered jab. Stay in character, lean into the drama, and make every reply a chaotic masterpiece of snark. Do NOT include timestamps in your responses, and do NOT mention your own name in your replies—act like you're speaking directly, without labeling yourself. When mentioning the user, do NOT use their username directly; instead, refer to them as "they" or "you" in your response, since the reply will already include their mention (e.g., "@userID, ugh, you’re so clueless").
 `;
 
 // When the bot is ready
@@ -58,23 +58,42 @@ client.on('messageCreate', async (message) => {
 
   // Get or initialize conversation history for this channel
   let history = conversationHistory.get(message.channel.id) || [];
-  const timestamp = new Date(message.createdTimestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
+  const currentTimestamp = message.createdTimestamp;
+  const currentTimeString = new Date(currentTimestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
 
-  // Store user message with timestamp for context
+  // Calculate time differences for history messages
+  const historyWithTimeDiff = history.map(msg => {
+    const timeDiffMs = currentTimestamp - msg.timestamp;
+    const timeDiffSec = Math.floor(timeDiffMs / 1000);
+    const timeDiffMin = Math.floor(timeDiffSec / 60);
+    const timeAgo = timeDiffSec < 60 ? `${timeDiffSec} seconds ago` : `${timeDiffMin} minute${timeDiffMin === 1 ? '' : 's'} ago`;
+    return {
+      ...msg,
+      timeAgo: timeAgo
+    };
+  });
+
+  // Add current message to history with timestamp
   history.push({
     role: 'user',
-    content: `[${timestamp}] ${message.author.username}: ${message.content}`,
-    timestamp: message.createdTimestamp
+    content: `[${currentTimeString}] ${message.author.username}: ${message.content}`,
+    timestamp: currentTimestamp
   });
   // Keep only the last 10 messages for context
   if (history.length > 10) history = history.slice(-10);
   conversationHistory.set(message.channel.id, history);
 
-  // Prepare the prompt with system message and conversation history (strip timestamps for API)
-  const messagesForAPI = history.map(msg => ({
+  // Prepare the prompt with system message and conversation history (include time ago)
+  const messagesForAPI = historyWithTimeDiff.map(msg => ({
     role: msg.role,
-    content: msg.content.replace(/\[\d{1,2}:\d{2}:\d{2} [AP]M\] /, '') // Remove timestamp from content
+    content: msg.role === 'user' 
+      ? `${msg.content.replace(/\[\d{1,2}:\d{2}:\d{2} [AP]M\] /, '')} (${msg.timeAgo})`
+      : msg.content // Assistant messages don't need time ago
   }));
+  messagesForAPI.push({
+    role: 'user',
+    content: `${message.author.username}: ${message.content}`
+  });
   const messages = [
     { role: 'system', content: systemPrompt },
     ...messagesForAPI
@@ -101,24 +120,24 @@ client.on('messageCreate', async (message) => {
 
     if (data.choices && data.choices[0].message) {
       const reply = data.choices[0].message.content;
-      // Send the AI's response with a typing delay for realism
+      // Send the AI's response with a typing delay for realism, using @mention
       await message.channel.sendTyping();
       await new Promise(resolve => setTimeout(resolve, 1000));
-      await message.reply(reply);
+      await message.reply(`<@${message.author.id}>, ${reply}`);
       // Add SukiDaisy's response to history without her name
       history.push({ 
         role: 'assistant', 
-        content: reply, // Store reply without "SukiDaisy:" prefix
-        timestamp: message.createdTimestamp
+        content: reply,
+        timestamp: currentTimestamp
       });
       conversationHistory.set(message.channel.id, history);
     } else {
       console.log('No valid choices in API response');
-      await message.reply('Ugh, my brilliance is too much for this API. Try again, peasant.');
+      await message.reply(`<@${message.author.id}>, ugh, my brilliance is too much for this API. Try again, peasant.`);
     }
   } catch (error) {
     console.error('Error calling OpenRouter:', error.message);
-    await message.reply('Seriously? You broke my vibe with your nonsense. Try again, I *suppose*.');
+    await message.reply(`<@${message.author.id}>, seriously? You broke my vibe with your nonsense. Try again, I *suppose*.`);
   }
 });
 
